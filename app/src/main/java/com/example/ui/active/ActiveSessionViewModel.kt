@@ -314,10 +314,18 @@ class ActiveSessionViewModel @Inject constructor(
             addLog("🔍 Requesting public IP configuration and ISP info...")
             try {
                 withContext(Dispatchers.IO) {
-                    val client = okhttp3.OkHttpClient.Builder()
-                        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-                        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
-                        .build()
+                    val builder = okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+                    
+                    if (!isSessionHost) {
+                        // Force Guest's IP verification request to route through the local HTTP Tunnel Proxy (127.0.0.1:8080)
+                        addLog("🌐 Directing verification request through 127.0.0.1:8080 tunnel...")
+                        val proxyAddress = java.net.InetSocketAddress("127.0.0.1", 8080)
+                        builder.proxy(java.net.Proxy(java.net.Proxy.Type.HTTP, proxyAddress))
+                    }
+                    
+                    val client = builder.build()
                     
                     val request = okhttp3.Request.Builder()
                         .url("https://ipinfo.io/json")
@@ -344,6 +352,7 @@ class ActiveSessionViewModel @Inject constructor(
                             throw Exception("HTTP Error code: ${response.code}")
                         }
                     } catch (e: Exception) {
+                        addLog("⚠️ Primary IP verify failed (${e.localizedMessage}), attempting fallback direct query...")
                         val fallbackRequest = okhttp3.Request.Builder()
                             .url("https://api.ipify.org?format=json")
                             .header("User-Agent", "Mozilla/5.0 (Android; Mobile)")
