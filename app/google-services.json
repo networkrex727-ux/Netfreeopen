@@ -1,0 +1,68 @@
+{
+  "project_info": {
+    "project_number": "861689644697",
+    "project_id": "wana-anime",
+    "storage_bucket": "wana-anime.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:861689644697:android:1cce7d617cf446abf75a08",
+        "android_client_info": {
+          "package_name": "com.primekhatabnet.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "861689644697-qeh6u7nmjk4npr9dqsq1e3atejgjj3ot.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlAStA0ftS6zaHCcat5a7vjZNvTuOGpUs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "861689644697-qeh6u7nmjk4npr9dqsq1e3atejgjj3ot.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:861689644697:android:1684c84cf51d097df75a08",
+        "android_client_info": {
+          "package_name": "com.wanaanime.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "861689644697-qeh6u7nmjk4npr9dqsq1e3atejgjj3ot.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDlAStA0ftS6zaHCcat5a7vjZNvTuOGpUs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "861689644697-qeh6u7nmjk4npr9dqsq1e3atejgjj3ot.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

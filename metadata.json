@@ -1,0 +1,8 @@
+{
+  "name": "Remix: FireTunnel P2P",
+  "description": "A Kotlin WebRTC application for sharing bandwidth via direct P2P tunnels using Firebase for signaling and authentication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
