@@ -177,6 +177,87 @@ fun ActiveSessionScreen(
                 }
             }
 
+            val connectionLogs by viewModel.connectionLogs.collectAsState()
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFF1E1E24)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color(0xFF00FF00))
+                            )
+                            Text(
+                                text = "P2P Handshake & Signal Logs",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Text(
+                            text = "Live Stream",
+                            fontSize = 11.sp,
+                            color = Color(0xFF00FF00).copy(alpha = 0.8f),
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .background(Color.Black, shape = RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (connectionLogs.isEmpty()) {
+                            Text(
+                                text = "Initializing signalling logs...",
+                                color = Color.Gray,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        } else {
+                            connectionLogs.forEach { log ->
+                                Text(
+                                    text = log,
+                                    color = if (log.contains("❌") || log.contains("failed", ignoreCase = true) || log.contains("error", ignoreCase = true)) {
+                                        Color(0xFFFF5252)
+                                    } else if (log.contains("✅") || log.contains("connected", ignoreCase = true) || log.contains("success", ignoreCase = true)) {
+                                        Color(0xFF69F0AE)
+                                    } else if (log.contains("⚡") || log.contains("🚀")) {
+                                        Color(0xFF40C4FF)
+                                    } else if (log.contains("❄️") || log.contains("ICE")) {
+                                        Color(0xFFFFD740)
+                                    } else {
+                                        Color(0xFFE0E0E0)
+                                    },
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(
