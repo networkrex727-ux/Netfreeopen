@@ -27,17 +27,19 @@ class BandwidthSharingService : Service() {
         const val EXTRA_USED_MB = "EXTRA_USED_MB"
         const val EXTRA_LIMIT_MB = "EXTRA_LIMIT_MB"
         const val EXTRA_SPEED_MBPS = "EXTRA_SPEED_MBPS"
+        const val EXTRA_STATE = "EXTRA_STATE"
 
         private val _stopEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val stopEvent = _stopEvent.asSharedFlow()
         
-        fun startService(context: Context, isHost: Boolean, usedMB: Long, limitMB: Long, speedMbps: Double) {
+        fun startService(context: Context, isHost: Boolean, usedMB: Long, limitMB: Long, speedMbps: Double, connectionState: String = "CONNECTED") {
             val intent = Intent(context, BandwidthSharingService::class.java).apply {
                 action = ACTION_START
                 putExtra(EXTRA_IS_HOST, isHost)
                 putExtra(EXTRA_USED_MB, usedMB)
                 putExtra(EXTRA_LIMIT_MB, limitMB)
                 putExtra(EXTRA_SPEED_MBPS, speedMbps)
+                putExtra(EXTRA_STATE, connectionState)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
@@ -46,13 +48,14 @@ class BandwidthSharingService : Service() {
             }
         }
         
-        fun updateService(context: Context, isHost: Boolean, usedMB: Long, limitMB: Long, speedMbps: Double) {
+        fun updateService(context: Context, isHost: Boolean, usedMB: Long, limitMB: Long, speedMbps: Double, connectionState: String = "CONNECTED") {
             val intent = Intent(context, BandwidthSharingService::class.java).apply {
                 action = ACTION_UPDATE
                 putExtra(EXTRA_IS_HOST, isHost)
                 putExtra(EXTRA_USED_MB, usedMB)
                 putExtra(EXTRA_LIMIT_MB, limitMB)
                 putExtra(EXTRA_SPEED_MBPS, speedMbps)
+                putExtra(EXTRA_STATE, connectionState)
             }
             context.startService(intent)
         }
@@ -77,7 +80,8 @@ class BandwidthSharingService : Service() {
                 val usedMB = intent.getLongExtra(EXTRA_USED_MB, 0)
                 val limitMB = intent.getLongExtra(EXTRA_LIMIT_MB, 0)
                 val speedMbps = intent.getDoubleExtra(EXTRA_SPEED_MBPS, 0.0)
-                val notification = buildNotification(isHost, usedMB, limitMB, speedMbps)
+                val connectionState = intent.getStringExtra(EXTRA_STATE) ?: "CONNECTED"
+                val notification = buildNotification(isHost, usedMB, limitMB, speedMbps, connectionState)
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     startForeground(
@@ -100,7 +104,8 @@ class BandwidthSharingService : Service() {
                 val usedMB = intent.getLongExtra(EXTRA_USED_MB, 0)
                 val limitMB = intent.getLongExtra(EXTRA_LIMIT_MB, 0)
                 val speedMbps = intent.getDoubleExtra(EXTRA_SPEED_MBPS, 0.0)
-                val notification = buildNotification(isHost, usedMB, limitMB, speedMbps)
+                val connectionState = intent.getStringExtra(EXTRA_STATE) ?: "CONNECTED"
+                val notification = buildNotification(isHost, usedMB, limitMB, speedMbps, connectionState)
                 val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                 notificationManager.notify(NOTIFICATION_ID, notification)
             }
@@ -117,12 +122,24 @@ class BandwidthSharingService : Service() {
         return START_NOT_STICKY
     }
 
-    private fun buildNotification(isHost: Boolean, usedMB: Long, limitMB: Long, speedMbps: Double): Notification {
-        val roleStr = if (isHost) "Sharing" else "Using"
-        val speedArrow = if (isHost) "↑" else "↓"
-        val speedText = String.format("%.2f Mbps", speedMbps)
-        val percent = if (limitMB > 0) (usedMB * 100 / limitMB) else 0
-        val text = "$roleStr: $speedText $speedArrow | $usedMB MB of $limitMB MB ($percent%)"
+    private fun buildNotification(isHost: Boolean, usedMB: Long, limitMB: Long, speedMbps: Double, connectionState: String): Notification {
+        val title: String
+        val text: String
+        
+        when (connectionState) {
+            "CONNECTING" -> {
+                title = "⚡ NetShare: Contacting Peer..."
+                text = "Establishing P2P WebRTC data tunnel. Exchanging SDP keys..."
+            }
+            else -> {
+                val roleStr = if (isHost) "Sharing" else "Using"
+                val speedArrow = if (isHost) "↑" else "↓"
+                title = "⚡ NetShare: Connected Successfully!"
+                val speedText = String.format("%.2f Mbps", speedMbps)
+                val percent = if (limitMB > 0) (usedMB * 100 / limitMB) else 0
+                text = "$roleStr: $speedText $speedArrow | $usedMB MB / $limitMB MB ($percent%)"
+            }
+        }
         
         val icon = android.R.drawable.stat_sys_download_done
 
@@ -155,7 +172,7 @@ class BandwidthSharingService : Service() {
         } else null
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("NetShare P2P Tunnel Active")
+            .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(icon)
             .setOngoing(true)

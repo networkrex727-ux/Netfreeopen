@@ -80,6 +80,11 @@ class ActiveSessionViewModel @Inject constructor(
         addLog("🚀 Active session initialization started. Role: ${if (isHost) "HOST (Sharing)" else "GUEST (Using)"}")
         addLog("📊 Bandwidth limit set to: $limitMB MB")
 
+        // Start Foreground Service immediately in CONNECTING state
+        BandwidthSharingService.startService(
+            context, isHost, 0L, limitMB, 0.0, "CONNECTING"
+        )
+
         viewModelScope.launch {
             BandwidthSharingService.stopEvent.collect {
                 addLog("⚠️ Background service requested session termination.")
