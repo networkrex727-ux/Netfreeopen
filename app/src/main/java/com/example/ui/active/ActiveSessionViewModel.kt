@@ -25,6 +25,7 @@ class ActiveSessionViewModel @Inject constructor(
     private var webRTCManager: WebRTCManager? = null
     private var hostProxyManager: HostProxyManager? = null
     private var guestProxyManager: GuestProxyManager? = null
+    private var guestLocalProxyServer: com.example.service.GuestLocalProxyServer? = null
     private val bandwidthMeter = BandwidthMeter()
 
     private val _connectionState = MutableStateFlow(WebRTCConnectionState.IDLE)
@@ -50,6 +51,12 @@ class ActiveSessionViewModel @Inject constructor(
 
     private val _isSimulating = MutableStateFlow(false)
     val isSimulating: StateFlow<Boolean> = _isSimulating.asStateFlow()
+
+    private val _publicIpInfo = MutableStateFlow<String?>("Not Verified")
+    val publicIpInfo: StateFlow<String?> = _publicIpInfo.asStateFlow()
+
+    private val _isFetchingIp = MutableStateFlow(false)
+    val isFetchingIp: StateFlow<Boolean> = _isFetchingIp.asStateFlow()
 
     private val _connectionLogs = MutableStateFlow<List<String>>(emptyList())
     val connectionLogs: StateFlow<List<String>> = _connectionLogs.asStateFlow()
@@ -113,10 +120,15 @@ class ActiveSessionViewModel @Inject constructor(
                     )
                 } else {
                     addLog("🚀 Launching Guest Proxy client over active data channel...")
-                    guestProxyManager = GuestProxyManager(
+                    val gpm = GuestProxyManager(
                         dataChannel = dc,
                         bandwidthMeter = bandwidthMeter
                     )
+                    guestProxyManager = gpm
+                    addLog("🌐 Starting Local HTTP CONNECT Proxy on Guest: localhost:8080...")
+                    val localProxy = com.example.service.GuestLocalProxyServer(gpm, viewModelScope)
+                    guestLocalProxyServer = localProxy
+                    localProxy.start()
                 }
             },
             onConnectionStateChanged = { state ->
@@ -126,9 +138,21 @@ class ActiveSessionViewModel @Inject constructor(
                     if (state == WebRTCConnectionState.CONNECTED) {
                         addLog("🎉 Real WebRTC peer channel connected successfully! Starting session data tracking.")
                         startSessionTracking()
+                        fetchPublicIpAddress()
                         BandwidthSharingService.startService(
                             context, isHost, bandwidthMeter.getUsedMB(), limitMB, bandwidthMeter.speedMbps.value
                         )
+                        if (!isHost) {
+                            addLog("🛡️ Starting NetShare Pro VPN routing interface (tun0)...")
+                            try {
+                                val vpnIntent = android.content.Intent(context, com.example.service.NetShareVpnService::class.java).apply {
+                                    action = com.example.service.NetShareVpnService.ACTION_START
+                                }
+                                context.startService(vpnIntent)
+                            } catch (e: Exception) {
+                                addLog("⚠️ Failed to start VPN Service automatically: ${e.localizedMessage}")
+                            }
+                        }
                     } else if (state == WebRTCConnectionState.DISCONNECTED || state == WebRTCConnectionState.FAILED) {
                         addLog("❌ Connection closed or failed.")
                         disconnect()
@@ -283,6 +307,72 @@ class ActiveSessionViewModel @Inject constructor(
         }
     }
 
+    fun fetchPublicIpAddress() {
+        viewModelScope.launch {
+            _isFetchingIp.value = true
+            _publicIpInfo.value = "Fetching current tunnel IP..."
+            addLog("🔍 Requesting public IP configuration and ISP info...")
+            try {
+                withContext(Dispatchers.IO) {
+                    val client = okhttp3.OkHttpClient.Builder()
+                        .connectTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                        .readTimeout(8, java.util.concurrent.TimeUnit.SECONDS)
+                        .build()
+                    
+                    val request = okhttp3.Request.Builder()
+                        .url("https://ipinfo.io/json")
+                        .header("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+                        .build()
+                    
+                    try {
+                        val response = client.newCall(request).execute()
+                        if (response.isSuccessful) {
+                            val bodyString = response.body?.string() ?: ""
+                            val json = org.json.JSONObject(bodyString)
+                            val ip = json.optString("ip", "Unknown")
+                            val city = json.optString("city", "Unknown")
+                            val region = json.optString("region", "Unknown")
+                            val country = json.optString("country", "Unknown")
+                            val orgName = json.optString("org", "Unknown ISP")
+                            
+                            val displayInfo = "IP: $ip\nISP: $orgName\nLocation: $city, $region ($country)"
+                            withContext(Dispatchers.Main) {
+                                _publicIpInfo.value = displayInfo
+                                addLog("✅ Public IP Verified: $ip ($orgName)")
+                            }
+                        } else {
+                            throw Exception("HTTP Error code: ${response.code}")
+                        }
+                    } catch (e: Exception) {
+                        val fallbackRequest = okhttp3.Request.Builder()
+                            .url("https://api.ipify.org?format=json")
+                            .header("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+                            .build()
+                        val fallbackResponse = client.newCall(fallbackRequest).execute()
+                        if (fallbackResponse.isSuccessful) {
+                            val bodyString = fallbackResponse.body?.string() ?: ""
+                            val json = org.json.JSONObject(bodyString)
+                            val ip = json.optString("ip", "Unknown")
+                            withContext(Dispatchers.Main) {
+                                _publicIpInfo.value = "IP: $ip\nISP: Unknown (Direct IP query fallback)\nLocation: N/A"
+                                addLog("✅ Public IP Verified (Fallback): $ip")
+                            }
+                        } else {
+                            throw Exception("Fallback query failed as well.")
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    _publicIpInfo.value = "Error: Unable to fetch IP. Please make sure data channel and VPN/Local Proxy are fully connected."
+                    addLog("⚠️ Failed to verify public IP: ${e.localizedMessage}")
+                }
+            } finally {
+                _isFetchingIp.value = false
+            }
+        }
+    }
+
     fun disconnect() {
         tickerJob?.cancel()
         tickerJob = null
@@ -291,6 +381,18 @@ class ActiveSessionViewModel @Inject constructor(
         webRTCManager = null
         hostProxyManager = null
         guestProxyManager = null
+
+        try {
+            val vpnIntent = android.content.Intent(context, com.example.service.NetShareVpnService::class.java).apply {
+                action = com.example.service.NetShareVpnService.ACTION_STOP
+            }
+            context.startService(vpnIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        guestLocalProxyServer?.stop()
+        guestLocalProxyServer = null
 
         BandwidthSharingService.stopService(context)
 

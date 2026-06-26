@@ -9,6 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,6 +43,8 @@ fun ActiveSessionScreen(
 
     val simulatedResponse by viewModel.simulatedResponse.collectAsState()
     val isSimulating by viewModel.isSimulating.collectAsState()
+    val publicIpInfo by viewModel.publicIpInfo.collectAsState()
+    val isFetchingIp by viewModel.isFetchingIp.collectAsState()
 
     var testUrlInput by remember { mutableStateOf("https://api.github.com/zen") }
     var showExitConfirmation by remember { mutableStateOf(false) }
@@ -71,6 +74,25 @@ fun ActiveSessionScreen(
                 }
             }
         )
+    }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val vpnPrepareIntent = remember { android.net.VpnService.prepare(context) }
+    val vpnLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            viewModel.addLog("✅ VPN permission granted by user.")
+        } else {
+            viewModel.addLog("❌ VPN permission denied. VPN tunnel won't start automatically.")
+        }
+    }
+
+    LaunchedEffect(vpnPrepareIntent) {
+        if (!isHost && vpnPrepareIntent != null) {
+            viewModel.addLog("🔐 Requesting VPN authorization...")
+            vpnLauncher.launch(vpnPrepareIntent)
+        }
     }
 
     LaunchedEffect(token, isHost, limitMB) {
@@ -355,6 +377,97 @@ fun ActiveSessionScreen(
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
+                        }
+                    }
+                }
+            }
+
+            Card(
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                ),
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Security Gateway",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Tunnel IP Verification",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { viewModel.fetchPublicIpAddress() },
+                            enabled = !isFetchingIp && connectionState == WebRTCConnectionState.CONNECTED
+                        ) {
+                            if (isFetchingIp) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Refresh Gateway",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = if (isHost) {
+                            "Below is your device's active public IP gateway. The guest's outgoing traffic will exit onto the public web from this location."
+                        } else {
+                            "Verify routing success below. When tunnel is active, this must reflect your Host's public IP address (rather than your SIM/WiFi IP)."
+                        },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            publicIpInfo?.split("\n")?.forEach { line ->
+                                Text(
+                                    text = line,
+                                    fontSize = 13.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (line.startsWith("IP:")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
                 }

@@ -1,5 +1,5 @@
 {
-  "name": "Remix: FireTunnel P2P",
+  "name": "NetShare Pro",
   "description": "A Kotlin WebRTC application for sharing bandwidth via direct P2P tunnels using Firebase for signaling and authentication.",
   "requestFramePermissions": [],
   "majorCapabilities": [

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">NetShare</string>
+    <string name="app_name">NetShare Pro</string>
     
     <!-- Firebase configuration strings for auto-initialization without google-services.json -->
     <string name="google_app_id" translatable="false">1:861689644697:android:1cce7d617cf446abf75a08</string>
